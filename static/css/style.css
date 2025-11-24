@@ -53,6 +53,8 @@ body {
     justify-content: space-between;
     align-items: center;
     gap: 2rem;
+    flex-wrap: wrap;
+    position: relative;
 }
 
 .logo {
@@ -70,7 +72,9 @@ body {
 
 .nav-menu {
     display: flex;
-    gap: 2rem;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
 }
 
 .nav-link {
@@ -80,6 +84,9 @@ body {
     transition: var(--transition);
     padding: 0.5rem 0;
     position: relative;
+    white-space: nowrap;
+    cursor: pointer;
+    z-index: 10;
 }
 
 .nav-link::after {
@@ -91,6 +98,10 @@ body {
     height: 2px;
     background: var(--primary-color);
     transition: var(--transition);
+}
+
+.nav-link:hover {
+    color: var(--primary-color);
 }
 
 .nav-link:hover::after,
@@ -122,6 +133,76 @@ body {
 
 .ollama-status.checking {
     color: var(--warning-color);
+}
+
+/* User Menu Styles */
+.user-menu {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding-left: 1.5rem;
+    margin-left: 1rem;
+    border-left: 2px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.user-name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--dark-color);
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.user-name i {
+    font-size: 1.2rem;
+    color: var(--primary-color);
+}
+
+.btn-change-password {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: rgba(102, 126, 234, 0.1);
+    color: var(--primary-color);
+    text-decoration: none;
+    border-radius: 50%;
+    font-size: 1rem;
+    transition: var(--transition);
+    border: 2px solid transparent;
+}
+
+.btn-change-password:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+    transform: scale(1.1);
+}
+
+.btn-logout {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 0.9rem;
+    transition: var(--transition);
+}
+
+.btn-logout:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(102, 126, 234, 0.3);
+}
+
+.btn-logout:active {
+    transform: translateY(0);
 }
 
 /* ========================================

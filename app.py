@@ -1,11 +1,15 @@
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, flash, session
 import requests
 import pandas as pd
 from datetime import datetime
 import io
 import os
+import sqlite3
 from io import BytesIO
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from functools import wraps
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
@@ -16,6 +20,13 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
 app = Flask(__name__)
+app.secret_key = 'your-secret-key-change-this-in-production'  # เปลี่ยนเป็น secret key ที่ปลอดภัยในการ deploy จริง
+
+# Flask-Login Configuration
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'กรุณาเข้าสู่ระบบก่อนใช้งาน'
 
 # Ollama API Configuration
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
@@ -122,6 +133,104 @@ if not os.path.exists(UPLOAD_FOLDER):
 # เก็บข้อมูลราคาที่อัปโหลดจาก Excel
 price_database = {}
 
+# ========================================
+# Database Configuration
+# ========================================
+
+DATABASE = 'PasitDev.db'
+
+def get_db():
+    """เชื่อมต่อกับ SQLite database"""
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def getYear():
+    now = datetime.now()
+    return now.strftime("%Y")
+
+def init_db():
+    """สร้างตาราง users ถ้ายังไม่มี"""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # สร้างตาราง users
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            full_name TEXT NOT NULL,
+            role TEXT DEFAULT 'user',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_login TIMESTAMP
+        )
+    ''')
+
+    # สร้าง admin account เริ่มต้น (email: admin@PasitDev.com, password: admin123)
+    try:
+        cursor.execute('''
+            INSERT INTO users (email, password, full_name, role)
+            VALUES (?, ?, ?, ?)
+        ''', ('admin@PasitDev.com', generate_password_hash('admin123'), 'ผู้ดูแลระบบ', 'admin'))
+        conn.commit()
+        print("✅ สร้าง Admin account เริ่มต้น: admin@PasitDev.com / admin123")
+    except sqlite3.IntegrityError:
+        pass  # Admin account มีอยู่แล้ว
+
+    conn.close()
+
+# เรียกใช้ init_db เมื่อเริ่มต้น app
+init_db()
+
+# ========================================
+# User Model for Flask-Login
+# ========================================
+
+class User(UserMixin):
+    def __init__(self, id, email, full_name, role):
+        self.id = id
+        self.email = email
+        self.full_name = full_name
+        self.role = role
+
+    def is_admin(self):
+        return self.role == 'admin'
+
+@login_manager.user_loader
+def load_user(user_id):
+    """โหลดข้อมูลผู้ใช้จาก database"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))
+    user_data = cursor.fetchone()
+    conn.close()
+
+    if user_data:
+        return User(
+            id=user_data['id'],
+            email=user_data['email'],
+            full_name=user_data['full_name'],
+            role=user_data['role']
+        )
+    return None
+
+def admin_required(f):
+    """Decorator สำหรับตรวจสอบว่าเป็น admin หรือไม่"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect(url_for('login'))
+        if not current_user.is_admin():
+            flash('คุณไม่มีสิทธิ์เข้าถึงหน้านี้', 'danger')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# ========================================
+# Helper Functions
+# ========================================
+
 def allowed_file(filename):
     """ตรวจสอบว่าไฟล์เป็น Excel หรือไม่"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -204,10 +313,240 @@ def getYear():
     y = now.strftime("%Y")
     return y
 
+# ========================================
+# Authentication Routes
+# ========================================
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """หน้า Login"""
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        remember = request.form.get('remember', False)
+
+        if not email or not password:
+            flash('กรุณากรอกอีเมล์และรหัสผ่าน', 'danger')
+            return render_template('login.html')
+
+        # ตรวจสอบ user ในฐานข้อมูล
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM users WHERE email = ?', (email,))
+        user_data = cursor.fetchone()
+
+        if user_data and check_password_hash(user_data['password'], password):
+            # Login สำเร็จ
+            user = User(
+                id=user_data['id'],
+                email=user_data['email'],
+                full_name=user_data['full_name'],
+                role=user_data['role']
+            )
+            login_user(user, remember=remember)
+
+            # อัปเดต last_login
+            cursor.execute('UPDATE users SET last_login = ? WHERE id = ?',
+                         (datetime.now(), user_data['id']))
+            conn.commit()
+            conn.close()
+
+            flash(f'ยินดีต้อนรับ {user.full_name}!', 'success')
+
+            # Redirect to next page or index
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('index'))
+        else:
+            flash('อีเมล์หรือรหัสผ่านไม่ถูกต้อง', 'danger')
+            conn.close()
+
+    return render_template('login.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """หน้า Register (สมัครสมาชิก)"""
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        full_name = request.form.get('full_name')
+
+        # Validation
+        if not email or not password or not full_name:
+            flash('กรุณากรอกข้อมูลให้ครบถ้วน', 'danger')
+            return render_template('register.html')
+
+        if password != confirm_password:
+            flash('รหัสผ่านไม่ตรงกัน', 'danger')
+            return render_template('register.html')
+
+        if len(password) < 4:
+            flash('รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร', 'danger')
+            return render_template('register.html')
+
+        # ตรวจสอบว่าอีเมล์ซ้ำหรือไม่
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM users WHERE email = ?', (email,))
+        existing_user = cursor.fetchone()
+
+        if existing_user:
+            flash('อีเมล์นี้ถูกใช้งานแล้ว', 'danger')
+            conn.close()
+            return render_template('register.html')
+
+        # สร้าง account ใหม่
+        hashed_password = generate_password_hash(password)
+        try:
+            cursor.execute('''
+                INSERT INTO users (email, password, full_name, role)
+                VALUES (?, ?, ?, ?)
+            ''', (email, hashed_password, full_name, 'user'))
+            conn.commit()
+            conn.close()
+
+            flash('สมัครสมาชิกสำเร็จ! กรุณาเข้าสู่ระบบ', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            conn.close()
+            flash(f'เกิดข้อผิดพลาด: {str(e)}', 'danger')
+            return render_template('register.html')
+
+    return render_template('register.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    """Logout"""
+    logout_user()
+    flash('ออกจากระบบเรียบร้อย', 'info')
+    return redirect(url_for('login'))
+
+@app.route('/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    """เปลี่ยนรหัสผ่าน"""
+    if request.method == 'POST':
+        current_password = request.form.get('current_password')
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password')
+
+        # Validation
+        if not current_password or not new_password or not confirm_password:
+            flash('กรุณากรอกข้อมูลให้ครบถ้วน', 'danger')
+            return render_template('change_password.html')
+
+        if new_password != confirm_password:
+            flash('รหัสผ่านใหม่ไม่ตรงกัน', 'danger')
+            return render_template('change_password.html')
+
+        if len(new_password) < 4:
+            flash('รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร', 'danger')
+            return render_template('change_password.html')
+
+        if current_password == new_password:
+            flash('รหัสผ่านใหม่ต้องไม่เหมือนรหัสผ่านเดิม', 'danger')
+            return render_template('change_password.html')
+
+        # ตรวจสอบรหัสผ่านเดิม
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT password FROM users WHERE id = ?', (current_user.id,))
+        user_data = cursor.fetchone()
+
+        if not user_data or not check_password_hash(user_data['password'], current_password):
+            flash('รหัสผ่านเดิมไม่ถูกต้อง', 'danger')
+            conn.close()
+            return render_template('change_password.html')
+
+        # เปลี่ยนรหัสผ่าน
+        hashed_password = generate_password_hash(new_password)
+        cursor.execute('UPDATE users SET password = ? WHERE id = ?',
+                      (hashed_password, current_user.id))
+        conn.commit()
+        conn.close()
+
+        flash('เปลี่ยนรหัสผ่านสำเร็จ!', 'success')
+        return redirect(url_for('index'))
+
+    return render_template('change_password.html')
+
+@app.route('/admin')
+@admin_required
+def admin():
+    """หน้า Admin Panel - จัดการผู้ใช้"""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # ดึงข้อมูลผู้ใช้ทั้งหมด
+    cursor.execute('''
+        SELECT id, email, full_name, role, created_at, last_login
+        FROM users
+        ORDER BY created_at DESC
+    ''')
+    users = cursor.fetchall()
+    conn.close()
+
+    return render_template('admin.html', users=users)
+
+@app.route('/admin/delete-user/<int:user_id>', methods=['POST'])
+@admin_required
+def delete_user(user_id):
+    """ลบผู้ใช้ (Admin เท่านั้น)"""
+    if user_id == current_user.id:
+        flash('ไม่สามารถลบบัญชีตัวเองได้', 'danger')
+        return redirect(url_for('admin'))
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+
+    flash('ลบผู้ใช้เรียบร้อย', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/admin/toggle-role/<int:user_id>', methods=['POST'])
+@admin_required
+def toggle_role(user_id):
+    """เปลี่ยน Role ผู้ใช้ระหว่าง user และ admin"""
+    if user_id == current_user.id:
+        flash('ไม่สามารถเปลี่ยน role ของตัวเองได้', 'danger')
+        return redirect(url_for('admin'))
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # ดึง role ปัจจุบัน
+    cursor.execute('SELECT role FROM users WHERE id = ?', (user_id,))
+    user_data = cursor.fetchone()
+
+    if user_data:
+        current_role = user_data['role']
+        new_role = 'admin' if current_role == 'user' else 'user'
+
+        cursor.execute('UPDATE users SET role = ? WHERE id = ?', (new_role, user_id))
+        conn.commit()
+        flash(f'เปลี่ยน Role เป็น {new_role} เรียบร้อย', 'success')
+
+    conn.close()
+    return redirect(url_for('admin'))
+
+# ========================================
+# Main Routes
+# ========================================
+
 @app.route('/')
+@login_required
 def index():
-    y = getYear
-    return render_template('index.html', year=y)
+    y = getYear()
+    return render_template('index.html', year=y, user=current_user)
 
 @app.route('/api/provinces', methods=['GET'])
 def get_provinces():
@@ -590,4 +929,4 @@ if __name__ == '__main__':
     print("เริ่มต้นเซิร์ฟเวอร์ที่: http://localhost:5000")
     print("กรุณาตรวจสอบว่า Ollama กำลังทำงานที่: http://localhost:11434")
     print("=" * 60)
-    app.run(debug=True, host='0.0.0.0', port=8088)
+    app.run(debug=True, host='0.0.0.0', port=8089)

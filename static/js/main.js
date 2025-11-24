@@ -43,17 +43,26 @@ function setupEventHandlers() {
         submitQuickEstimate();
     });
 
-    // Smooth Scroll for Navigation
+    // Smooth Scroll for Navigation (เฉพาะ internal links ที่ขึ้นต้นด้วย #)
     $('.nav-link').on('click', function(e) {
-        e.preventDefault();
         const target = $(this).attr('href');
-        $('html, body').animate({
-            scrollTop: $(target).offset().top - 80
-        }, 800);
 
-        // Update active link
-        $('.nav-link').removeClass('active');
-        $(this).addClass('active');
+        // ถ้าเป็น internal link (ขึ้นต้นด้วย #) ให้ทำ smooth scroll
+        if (target && target.startsWith('#')) {
+            e.preventDefault();
+
+            // ตรวจสอบว่า element มีอยู่จริง
+            if ($(target).length) {
+                $('html, body').animate({
+                    scrollTop: $(target).offset().top - 80
+                }, 800);
+
+                // Update active link
+                $('.nav-link').removeClass('active');
+                $(this).addClass('active');
+            }
+        }
+        // ถ้าไม่ใช่ internal link (เช่น /admin, /logout) ให้ทำงานตามปกติ
     });
 }
 
@@ -654,4 +663,21 @@ $(document).on('keydown', function(e) {
         $('.modal').removeClass('active');
         closeResult();
     }
+});
+
+$(document).on('click', '.btn-logout', function (e) {
+    e.preventDefault();
+    Swal.fire({
+      title: 'ออกจากระบบ',
+      text: 'กรุณายืนยันเพื่อออกจากระบบ',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'ออกจากระบบ'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        window.location.href = "{{ url_for('logout') }}";
+      }
+    })
 });
