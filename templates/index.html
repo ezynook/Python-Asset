@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PasitDev - ระบบประเมินราคาทรัพย์สิน</title>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-shield-alt"></i>
+                    <h1>PasitDev</h1>
+                </div>
+                <nav class="nav-menu">
+                    <a href="#home" class="nav-link active">หน้าแรก</a>
+                    <a href="#evaluate" class="nav-link">ประเมินราคา</a>
+                    <a href="#about" class="nav-link">เกี่ยวกับเรา</a>
+                </nav>
+                <div class="ollama-status" id="ollamaStatus">
+                    <i class="fas fa-circle"></i>
+                    <span>กำลังตรวจสอบ...</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero" id="home">
+        <div class="container">
+            <div class="hero-content">
+                <h2 class="hero-title">ระบบประเมินราคาทรัพย์สิน</h2>
+                <p class="hero-subtitle">ประเมินราคาอสังหาริมทรัพย์ด้วย AI ที่แม่นยำและเชื่อถือได้</p>
+                <div class="hero-buttons">
+                    <button class="btn btn-primary" onclick="scrollToEvaluate()">
+                        <i class="fas fa-calculator"></i> เริ่มประเมินราคา
+                    </button>
+                    <button class="btn btn-secondary" onclick="showQuickEstimate()">
+                        <i class="fas fa-bolt"></i> ประมาณราคาเร็ว
+                    </button>
+                    <button class="btn btn-secondary" onclick="showUploadModal()">
+                        <i class="fas fa-file-excel"></i> จัดการข้อมูลราคา
+                    </button>
+                </div>
+            </div>
+            <div class="hero-stats">
+                <div class="stat-card">
+                    <i class="fas fa-home"></i>
+                    <h3>10,000+</h3>
+                    <p>ทรัพย์สินที่ประเมิน</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-users"></i>
+                    <h3>5,000+</h3>
+                    <p>ผู้ใช้งาน</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-chart-line"></i>
+                    <h3>95%</h3>
+                    <p>ความแม่นยำ</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Evaluation Form Section -->
+    <section class="evaluation-section" id="evaluate">
+        <div class="container">
+            <h2 class="section-title">ประเมินราคาทรัพย์สิน</h2>
+            <p class="section-subtitle">กรอกข้อมูลทรัพย์สินเพื่อรับการประเมินราคาจาก AI</p>
+
+            <div class="evaluation-container">
+                <!-- Form Card -->
+                <div class="form-card">
+                    <form id="evaluationForm">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="propertyType">
+                                    <i class="fas fa-building"></i> ประเภททรัพย์สิน
+                                </label>
+                                <select id="propertyType" name="property_type" required>
+                                    <option value="">เลือกประเภททรัพย์สิน</option>
+                                    <option value="คอนโด">คอนโด</option>
+                                    <option value="บ้านเดี่ยว">บ้านเดี่ยว</option>
+                                    <option value="ทาวน์เฮาส์">ทาวน์เฮาส์</option>
+                                    <option value="อาคารพาณิชย์">อาคารพาณิชย์</option>
+                                    <option value="ที่ดิน">ที่ดิน</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="province">
+                                    <i class="fas fa-map-marker-alt"></i> จังหวัด
+                                </label>
+                                <select id="province" name="province" required>
+                                    <option value="">กำลังโหลดจังหวัด...</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="area">
+                                    <i class="fas fa-ruler-combined"></i> ขนาดพื้นที่ (ตร.ม.)
+                                </label>
+                                <input type="number" id="area" name="area" placeholder="เช่น 50" min="1" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="bedrooms">
+                                    <i class="fas fa-bed"></i> จำนวนห้องนอน
+                                </label>
+                                <input type="number" id="bedrooms" name="bedrooms" placeholder="เช่น 2" min="0">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="bathrooms">
+                                    <i class="fas fa-bath"></i> จำนวนห้องน้ำ
+                                </label>
+                                <input type="number" id="bathrooms" name="bathrooms" placeholder="เช่น 2" min="0">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="age">
+                                    <i class="fas fa-calendar-alt"></i> อายุอาคาร (ปี)
+                                </label>
+                                <input type="number" id="age" name="age" placeholder="เช่น 5" min="0">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="condition">
+                                <i class="fas fa-star"></i> สภาพทรัพย์สิน
+                            </label>
+                            <select id="condition" name="condition">
+                                <option value="">เลือกสภาพทรัพย์สิน</option>
+                                <option value="ใหม่มาก">ใหม่มาก</option>
+                                <option value="ดีมาก">ดีมาก</option>
+                                <option value="ดี">ดี</option>
+                                <option value="ปานกลาง">ปานกลาง</option>
+                                <option value="ต้องซ่อมแซม">ต้องซ่อมแซม</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="additionalInfo">
+                                <i class="fas fa-info-circle"></i> ข้อมูลเพิ่มเติม
+                            </label>
+                            <textarea id="additionalInfo" name="additional_info" rows="3" placeholder="เช่น มีที่จอดรถ, ใกล้ BTS, วิวสวย..."></textarea>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary btn-large">
+                                <i class="fas fa-magic"></i> ประเมินด้วย AI
+                            </button>
+                            <button type="button" class="btn btn-outline" onclick="resetForm()">
+                                <i class="fas fa-redo"></i> ล้างข้อมูล
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Loading -->
+                    <div id="loading" class="loading" style="display: none;">
+                        <div class="spinner"></div>
+                        <p>AI กำลังวิเคราะห์ข้อมูล...</p>
+                    </div>
+                </div>
+
+                <!-- Result Card -->
+                <div class="result-card" id="resultCard" style="display: none;">
+                    <div class="result-header">
+                        <h3><i class="fas fa-chart-bar"></i> ผลการประเมิน</h3>
+                        <button class="btn-close" onclick="closeResult()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+
+                    <div class="property-summary" id="propertySummary"></div>
+
+                    <div class="result-content" id="resultContent"></div>
+
+                    <div class="result-actions">
+                        <button class="btn btn-primary" onclick="downloadPDF()">
+                            <i class="fas fa-download"></i> ดาวน์โหลด PDF
+                        </button>
+                        <button class="btn btn-secondary" onclick="shareResult()">
+                            <i class="fas fa-share-alt"></i> แชร์ผลลัพธ์
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Estimate Modal -->
+    <div id="quickEstimateModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-bolt"></i> ประมาณราคาเร็ว</h3>
+                <button class="btn-close" onclick="closeQuickEstimate()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="quickEstimateForm">
+                    <div class="form-group">
+                        <label for="quickPropertyType">
+                            <i class="fas fa-building"></i> ประเภททรัพย์สิน
+                        </label>
+                        <select id="quickPropertyType" name="property_type" required>
+                            <option value="">เลือกประเภท</option>
+                            <option value="คอนโด">คอนโด</option>
+                            <option value="บ้านเดี่ยว">บ้านเดี่ยว</option>
+                            <option value="ทาวน์เฮาส์">ทาวน์เฮาส์</option>
+                            <option value="อาคารพาณิชย์">อาคารพาณิชย์</option>
+                            <option value="ที่ดิน">ที่ดิน</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="quickArea">
+                            <i class="fas fa-ruler-combined"></i> ขนาดพื้นที่ (ตร.ม.)
+                        </label>
+                        <input type="number" id="quickArea" name="area" placeholder="เช่น 50" min="1" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="quickProvince">
+                            <i class="fas fa-map-marker-alt"></i> จังหวัด
+                        </label>
+                        <select id="quickProvince" name="province" required>
+                            <option value="">กำลังโหลดจังหวัด...</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-large">
+                        <i class="fas fa-calculator"></i> คำนวณราคา
+                    </button>
+                </form>
+
+                <div id="quickResult" class="quick-result" style="display: none;">
+                    <div class="price-display">
+                        <p>ราคาประมาณการ</p>
+                        <h2 id="quickPrice"></h2>
+                        <p class="price-detail" id="quickDetail"></p>
+                    </div>
+                    <p class="disclaimer">
+                        <i class="fas fa-info-circle"></i>
+                        นี่เป็นเพียงการประมาณราคาเบื้องต้น สำหรับการประเมินที่แม่นยำกรุณาใช้ระบบประเมินด้วย AI
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Excel Modal -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-file-excel"></i> จัดการข้อมูลราคา</h3>
+                <button class="btn-close" onclick="closeUploadModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="upload-section">
+                    <h4><i class="fas fa-info-circle"></i> วิธีการใช้งาน</h4>
+                    <ol class="instruction-list">
+                        <li>ดาวน์โหลด Template Excel</li>
+                        <li>กรอกข้อมูลราคาตามรูปแบบ:
+                            <ul>
+                                <li><strong>province</strong>: ชื่อจังหวัด</li>
+                                <li><strong>property_type</strong>: ประเภททรัพย์สิน (คอนโด, บ้านเดี่ยว, ฯลฯ)</li>
+                                <li><strong>base_price_per_sqm</strong>: ราคาต่อตารางเมตร (บาท)</li>
+                            </ul>
+                        </li>
+                        <li>อัปโหลดไฟล์กลับเข้าระบบ</li>
+                    </ol>
+
+                    <div class="button-group">
+                        <button class="btn btn-outline" onclick="downloadTemplate()">
+                            <i class="fas fa-download"></i> ดาวน์โหลด Template
+                        </button>
+                    </div>
+
+                    <div class="upload-area">
+                        <div class="file-input-wrapper">
+                            <label for="excelFileInput" class="file-label">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <span>เลือกไฟล์ Excel หรือ CSV</span>
+                                <small>รองรับ .xlsx, .xls, .csv (ขนาดไม่เกิน 16MB)</small>
+                            </label>
+                            <input type="file" id="excelFileInput" accept=".xlsx,.xls,.csv" style="display: none;">
+                        </div>
+                    </div>
+
+                    <div class="button-group">
+                        <button class="btn btn-primary btn-large" onclick="uploadExcelFile()">
+                            <i class="fas fa-upload"></i> อัปโหลดไฟล์
+                        </button>
+                    </div>
+
+                    <div class="info-box">
+                        <i class="fas fa-lightbulb"></i>
+                        <p><strong>หมายเหตุ:</strong> ข้อมูลที่อัปโหลดจะถูกใช้ในการคำนวณราคาประมาณการแบบเร็ว ข้อมูลจะถูกเก็บไว้ในระบบจนกว่าจะปิดเซิร์ฟเวอร์</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- About Section -->
+    <section class="about-section" id="about">
+        <div class="container">
+            <h2 class="section-title">เกี่ยวกับระบบ</h2>
+            <div class="about-grid">
+                <div class="about-card">
+                    <i class="fas fa-robot"></i>
+                    <h3>AI ที่ทันสมัย</h3>
+                    <p>ใช้เทคโนโลยี AI จาก Ollama ในการวิเคราะห์และประเมินราคาที่แม่นยำ</p>
+                </div>
+                <div class="about-card">
+                    <i class="fas fa-database"></i>
+                    <h3>ฐานข้อมูลครบถ้วน</h3>
+                    <p>อ้างอิงจากข้อมูลตลาดอสังหาริมทรัพย์ที่เป็นปัจจุบัน</p>
+                </div>
+                <div class="about-card">
+                    <i class="fas fa-lock"></i>
+                    <h3>ปลอดภัย</h3>
+                    <p>ข้อมูลของคุณได้รับการปกป้องและไม่ถูกนำไปใช้ในทางที่ผิด</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; {{year}} PasitDev - ระบบประเมินราคาทรัพย์สิน</p>
+        </div>
+    </footer>
+
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
